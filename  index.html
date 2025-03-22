@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>献立表 & 栄養グラフ</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #121212;
+            color: #fff;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            background-color: #181818;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        .button-group {
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #1DB954;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #fff;
+        }
+
+        button:hover {
+            background-color: #17a347;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #222;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #444;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        th {
+            background-color: #333;
+            font-weight: bold;
+        }
+
+        /* グラフを左側に配置 */
+        .chart-container {
+            width: 150px;
+            height: 150px;
+            margin: 50px 20px;  /* グラフを左に寄せる */
+            background: #222;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            float: left;  /* 左に寄せる */
+        }
+
+        .total-cost {
+            font-size: 20px;
+            margin-top: 10px;
+            color: #FFD700;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>1週間の献立</h1>
+        <div class="button-group">
+            <button id="btn-default">通常</button>
+            <button id="btn-protein">タンパク質多め</button>
+            <button id="btn-iron">鉄分多め</button>
+            <button id="btn-diet">ダイエット向け</button>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>曜日</th>
+                        <th>朝食</th>
+                        <th>昼食</th>
+                        <th>夕食</th>
+                        <th>1日のカロリー</th>
+                        <th>材料費（円）</th>
+                    </tr>
+                </thead>
+                <tbody id="menuTable"></tbody>
+            </table>
+        </div>
+        <div class="chart-container">
+            <canvas id="nutritionChart"></canvas>
+        </div>
+        <div class="total-cost">
+            1週間の合計材料費: <span id="weeklyTotalCost">0</span> 円
+        </div>
+    </div>
+
+    <script>
+        const menus = {
+            default: [
+                { day: "月曜日", breakfast: "ご飯", lunch: "焼き魚", dinner: "カレー", calories: 2000, cost: 600 },
+                { day: "火曜日", breakfast: "パン", lunch: "ハンバーグ", dinner: "鍋", calories: 2100, cost: 650 },
+                { day: "水曜日", breakfast: "おにぎり", lunch: "パスタ", dinner: "照り焼きチキン", calories: 1900, cost: 700 },
+                { day: "木曜日", breakfast: "トースト", lunch: "唐揚げ", dinner: "味噌汁と焼き魚", calories: 2200, cost: 750 },
+                { day: "金曜日", breakfast: "ヨーグルト", lunch: "親子丼", dinner: "天ぷら", calories: 2000, cost: 680 },
+                { day: "土曜日", breakfast: "シリアル", lunch: "ラーメン", dinner: "寿司", calories: 2300, cost: 800 },
+                { day: "日曜日", breakfast: "お粥", lunch: "カツ丼", dinner: "ステーキ", calories: 2500, cost: 850 }
+            ],
+            protein: [
+                { day: "月曜日", breakfast: "卵", lunch: "鶏胸肉", dinner: "サーモン", calories: 2500, cost: 800 },
+                { day: "火曜日", breakfast: "ヨーグルト", lunch: "牛肉のステーキ", dinner: "エビ", calories: 2400, cost: 850 },
+                { day: "水曜日", breakfast: "シリアル", lunch: "サーモン", dinner: "鶏肉の唐揚げ", calories: 2600, cost: 900 },
+                { day: "木曜日", breakfast: "チーズ", lunch: "肉団子", dinner: "鮭のムニエル", calories: 2700, cost: 950 },
+                { day: "金曜日", breakfast: "プロテインシェイク", lunch: "牛肉", dinner: "グリルチキン", calories: 2500, cost: 900 },
+                { day: "土曜日", breakfast: "卵焼き", lunch: "ステーキ", dinner: "タコス", calories: 2800, cost: 950 },
+                { day: "日曜日", breakfast: "オムレツ", lunch: "ポークチョップ", dinner: "ローストビーフ", calories: 2900, cost: 1000 }
+            ],
+            iron: [
+                { day: "月曜日", breakfast: "ほうれん草のサラダ", lunch: "レバーの煮物", dinner: "赤身肉のステーキ", calories: 2200, cost: 750 },
+                { day: "火曜日", breakfast: "卵", lunch: "ひじきの煮物", dinner: "レバー焼き", calories: 2300, cost: 800 },
+                { day: "水曜日", breakfast: "鉄分強化シリアル", lunch: "チーズとほうれん草のパスタ", dinner: "サバの味噌煮", calories: 2100, cost: 700 },
+                { day: "木曜日", breakfast: "ほうれん草入りオムレツ", lunch: "牛肉のグリル", dinner: "シチュー", calories: 2200, cost: 750 },
+                { day: "金曜日", breakfast: "黒豆", lunch: "牡蠣の炒め物", dinner: "赤身肉のカレー", calories: 2400, cost: 800 },
+                { day: "土曜日", breakfast: "納豆", lunch: "豚肉とほうれん草の炒め物", dinner: "鉄分強化食材のサラダ", calories: 2500, cost: 850 },
+                { day: "日曜日", breakfast: "ほうれん草のスムージー", lunch: "レバーのステーキ", dinner: "鉄分豊富なカレー", calories: 2600, cost: 900 }
+            ],
+            diet: [
+                { day: "月曜日", breakfast: "ヨーグルト", lunch: "サラダチキン", dinner: "野菜スープ", calories: 1500, cost: 500 },
+                { day: "火曜日", breakfast: "オートミール", lunch: "サーモンのグリル", dinner: "サラダ", calories: 1400, cost: 550 },
+                { day: "水曜日", breakfast: "卵白オムレツ", lunch: "チキンサラダ", dinner: "豆腐と野菜の炒め物", calories: 1300, cost: 600 },
+                { day: "木曜日", breakfast: "プロテインシェイク", lunch: "低脂肪ヨーグルト", dinner: "蒸し野菜とチキン", calories: 1400, cost: 620 },
+                { day: "金曜日", breakfast: "フルーツスムージー", lunch: "グリルドチキン", dinner: "野菜たっぷりスープ", calories: 1300, cost: 580 },
+                { day: "土曜日", breakfast: "アボカドトースト", lunch: "サラダ", dinner: "野菜炒め", calories: 1200, cost: 570 },
+                { day: "日曜日", breakfast: "低脂肪ヨーグルト", lunch: "鶏肉のサラダ", dinner: "蒸し野菜", calories: 1400, cost: 590 }
+            ]
+        };
+
+        function setupButtons() {
+            document.getElementById("btn-default").addEventListener("click", function () {
+                changeMenu('default');
+            });
+            document.getElementById("btn-protein").addEventListener("click", function () {
+                changeMenu('protein');
+            });
+            document.getElementById("btn-iron").addEventListener("click", function () {
+                changeMenu('iron');
+            });
+            document.getElementById("btn-diet").addEventListener("click", function () {
+                changeMenu('diet');
+            });
+        }
+
+        function changeMenu(type) {
+            console.log(`選択された献立: ${type}`);
+            const menuData = menus[type];
+            if (!menuData) {
+                console.error(`献立データが見つかりません: ${type}`);
+                return;
+            }
+
+            const tableBody = document.getElementById("menuTable");
+            tableBody.innerHTML = "";
+            let totalCost = 0;
+            let totalCalories = 0;
+
+            menuData.forEach(item => {
+                totalCost += item.cost;
+                totalCalories += item.calories;
+                tableBody.innerHTML += `
+                    <tr>
+                        <td>${item.day}</td>
+                        <td>${item.breakfast}</td>
+                        <td>${item.lunch}</td>
+                        <td>${item.dinner}</td>
+                        <td>${item.calories} kcal</td>
+                        <td>${item.cost} 円</td>
+                    </tr>`;
+            });
+
+            document.getElementById("weeklyTotalCost").textContent = totalCost;
+            updateChart(totalCalories * 0.3, totalCalories * 0.2, totalCalories);
+        }
+
+        function updateChart(protein, iron, total) {
+            const ctx = document.getElementById('nutritionChart').getContext('2d');
+            const nutritionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['タンパク質', '鉄分', '総カロリー'],
+                    datasets: [{
+                        label: '栄養素',
+                        data: [protein, iron, total],
+                        backgroundColor: ['#ff5733', '#33b5ff', '#ffeb3b'],
+                        borderColor: ['#ff5733', '#33b5ff', '#ffeb3b3'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // 初期状態でデフォルトのメニューを表示
+        window.onload = function() {
+            setupButtons();
+            changeMenu('default');
+        };
+    </script>
+</body>
+</html>
